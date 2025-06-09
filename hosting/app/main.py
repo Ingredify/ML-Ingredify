@@ -1,6 +1,6 @@
 # app/main.py
 
-from fastapi import FastAPI, HTTPException, Path
+from fastapi import FastAPI, HTTPException, Path, Query
 from pydantic import BaseModel
 from typing import List, Optional
 import tensorflow as tf
@@ -12,8 +12,8 @@ import os
 
 app = FastAPI(
     title="Food Recommendation API",
-    description="API untuk merekomendasikan resep makanan berdasarkan pengguna dan konten.",
-    version="1.0.0"
+    description="API untuk merekomendasikan resep makanan berdasarkan pengguna dan kemiripan konten.",
+    version="1.1.0"
 )
 
 # Path ke model dan data di dalam container
@@ -63,27 +63,27 @@ async def root():
     return {"status": "ok", "message": "Welcome to the Food Recommendation API!"}
 
 
-@app.get("/recommend_by_user/{user_id}", response_model=List[RecommendedItem], summary="Rekomendasi Berdasarkan User")
-async def recommend_by_user(user_id: str = Path(..., description="ID unik user, contoh: 'user_3'")):
+@app.get("/recommend/{user_id}", response_model=List[RecommendedItem], summary="Rekomendasi Berdasarkan User")
+async def recommend_by_user(user_id: int = Path(..., description="ID numerik user, contoh: 3")):
     """
     Memberikan top 10 rekomendasi resep untuk seorang pengguna (user).
     Menggunakan model TFRS BruteForce yang sudah di-train.
     """
     try:
+        # Format user_id dari integer ke format string yang dikenali model ('user_3')
+        formatted_user_id = f"user_{user_id}"
+
         # Panggil method .recommend() pada model yang telah dimuat
-        # Pastikan tipe data k adalah int32 sesuai signature model
         scores, titles = recommender_index.recommend(
-            user_ids=tf.constant([user_id]),
+            user_ids=tf.constant([formatted_user_id]),
             k=tf.constant(10, dtype=tf.int32)
         )
 
         # Proses hasilnya
         recommendations = []
-        # titles[0] dan scores[0] karena input batch-nya hanya 1 user
         for title_tensor, score_tensor in zip(titles[0], scores[0]):
             title = title_tensor.numpy().decode('utf-8')
             # Cari food_id dan image_name dari metadata
-            # Menggunakan .get() untuk menghindari error jika title tidak ada
             food_info_rows = metadata_df[metadata_df['Title'] == title]
             if not food_info_rows.empty:
                 food_info = food_info_rows.iloc[0]
@@ -99,11 +99,14 @@ async def recommend_by_user(user_id: str = Path(..., description="ID unik user, 
         raise HTTPException(status_code=500, detail=f"Terjadi kesalahan pada server: {type(e).__name__} - {e}")
 
 
-@app.get("/recommend_by_food/{food_id}", response_model=List[RecommendedItem], summary="Rekomendasi Berdasarkan Item (Content-Based)")
-async def recommend_by_food(food_id: str = Path(..., description="ID unik resep, contoh: 'fb89d512ef0443f8a9cfcacc68eca4c8'")):
+@app.get("/similar/{food_id}", response_model=List[RecommendedItem], summary="Rekomendasi Makanan Serupa (Content-Based)")
+async def get_similar_food(
+    food_id: str = Path(..., description="ID unik resep, contoh: '27ff62a3b1524e628fb18700f945c503'"),
+    title: Optional[str] = Query(None, description="Judul resep (opsional).", example="Pork Katsu Sandwich")
+):
     """
     Memberikan top 10 resep yang paling mirip dengan resep input.
-    Menggunakan cosine similarity dari embedding vector.
+    Menggunakan cosine similarity dari embedding vector berdasarkan food_id.
     """
     if food_id not in food_id_to_embedding:
         raise HTTPException(status_code=404, detail="food_id tidak ditemukan dalam daftar embeddings.")
@@ -116,7 +119,6 @@ async def recommend_by_food(food_id: str = Path(..., description="ID unik resep,
         if f_id == food_id:
             continue
         
-        # Cosine similarity = dot(A, B) / (norm(A) * norm(B))
         similarity = np.dot(input_embedding, emb) / (np.linalg.norm(input_embedding) * np.linalg.norm(emb))
         similarities.append((f_id, similarity))
 
