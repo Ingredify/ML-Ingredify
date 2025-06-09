@@ -16,8 +16,5 @@ RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 COPY ./app /code/app
 
 # Expose port yang akan digunakan oleh FastAPI
-EXPOSE 8000
-
-# Perintah untuk menjalankan aplikasi menggunakan Uvicorn
-# 0.0.0.0 berarti service akan bisa diakses dari luar container
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+EXPOSE 7860
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
