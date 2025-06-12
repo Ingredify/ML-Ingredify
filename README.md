@@ -27,7 +27,7 @@ Jalankan file **`main.ipynb`**
 <pre><code>docker run -p 7860:7860 food-recommender-app</code></pre>
 > Layanan FastAPI akan tersedia di **`http://localhost:7860`**
 
-## Penjelelasan Model
+## Penjelasan Model
 1. Data Preprocessing
 
     Kolom **`user_id`**, **`food_id`**, **`title`**, dan **`ingredient_str`** dikonversi menjadi tipe data string.
